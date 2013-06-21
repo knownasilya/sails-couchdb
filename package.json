@@ -1,0 +1,21 @@
+{
+  "name": "sails-couchdb",
+  "version": "0.0.1",
+  "description": "Couchdb adapter for Sails.js",
+  "main": "index.js",
+  "keywords": [
+    "orm",
+    "waterline",
+    "sails",
+    "sailsjs",
+    "sails.js"
+  ],
+  "author": "Cris Vergara",
+  "license": "MIT",
+  "readmeFilename": "README.md",
+  "dependencies": {
+    "async": "0.1.22",
+    "felix-couchdb":"1.0.7",
+    "underscore":"1.4.4"
+  }
+}
