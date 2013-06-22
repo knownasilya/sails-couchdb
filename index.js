@@ -9,38 +9,33 @@
 var async = require('async')
   , couchdb = require('felix-couchdb')
   , _ = require('underscore')
-  , crypto = require('crypto');
+  , crypto = require('crypto')
+  , moment = require('moment');
 
 
 module.exports = (function(){
 
-  // Maintains our design docs
-  var designs = {};
+  // Maintains our collections
+  var coll = {};
 
-  // Keeps our current database
-  var db = {};
+  // Keeps our current database connections
+  var dbs = {};
 
   var adapter = {
-    syncable: false, 
-    defaults: { // Define defaults
-      port: 5984,
-      host: 'localhost',
-      database: 'testdb'
-    },
+    syncable: true, 
 
     // This function is for adding the collection to our design docs.
     registerCollection: function(collection, cb) {
 
-      designs[collection.identity] = _.each(designs, function(design){
-        return collection.database === design.database;
+      coll[collection.identity] = _.each(coll, function(cln){
+        return collection.database === cln.database;
       })
 
-      if (!designs[collection.identity]){
-        designs[collection.identity] = collection;
+      if (!coll[collection.identity]){
+        coll[collection.identity] = collection;
       }
-      designs[collection.identity]._views = {};
-      designs[collection.identity].schema = {};
-
+      coll[collection.identity]._views = {};
+      coll[collection.identity].schema = {};
       if (cb) return cb();
     },
 
@@ -55,31 +50,38 @@ module.exports = (function(){
     define: function(collectionName, definition, cb) {
       spawnClient(function __DEFINE__(db, cb){
         var required = "doc";
-        var requiredKeys = {};
         var def = _.clone(definition);
-        designs[collectionName].schema = def;
+        coll[collectionName].schema = def;
         var keys = Object.keys(def);
         var index = [];
+        var options = {};
+        options.where = {};
 
         async.series([
-          function(cb) {requiredKeys = _.filter(keys,function(key){return def[key].required;});cb();}],
+          function(cb) {requiredKeys = _.filter(keys,function(key){return def[key].required});
+            _.each(requiredKeys,function(value){
+              options.where[value] = definition[value];
+            });
+            cb();
+          }],
           function(err){
-            generateMap(requiredKeys,function(err,map){
+            if (err) return cb(err);
+            generateView(options,function(err,map){
               if (err) return cb(err);
-              saveView(collectionName,'id',map,function(err,data){
+              saveView(collectionName,'id',map,db,function(err,data){
                 if (err) return cb(err);
                 return cb(err,data);
               });
             });
         });
-      },designs[collectionName].config,cb);
+      },coll[collectionName].config,cb);
     },
 
     // Simply returns the schema of the given design doc.
     // TODO: prevent associated views from being returned.
     describe: function(collectionName, cb) {
-      var des = Object.keys(designs[collectionName].schema).length === 0 ?
-        null : designs[collectionName].schema;
+      var des = Object.keys(coll[collectionName].schema).length === 0 ?
+        null : coll[collectionName].schema;
       return cb(null, des);
     },
 
@@ -88,20 +90,33 @@ module.exports = (function(){
       spawnClient(function __DROP__(db,cb){
 
         cb();
-      },designs[collectionName].config,cb);
+      },coll[collectionName].config,cb);
     },
     
     // Creates only if there isn't already a document there.
     // TODO: Overload update() to create event if a document is already in the DB.
     create: function(collectionName, values, cb) {
       spawnClient(function(db,cb){
-        db.saveDoc(values,function(err,ok){
-          if (err) return cb(err);
-          values.id = ok.id;
-          values.rev = ok.rev;
-          return cb(err,values);
-        });
-      }, designs[collectionName].config,cb);
+        async.forEach(Object.keys(coll[collectionName].schema),
+          function(key,cb){
+            if (coll[collectionName].schema[key].autoIncrement !== true){
+              return cb();
+            }
+            getAutoIncrement(collectionName,key,db,function(err,value){
+              if (err) return cb(err);
+              values[key] = value;
+              return cb();
+            });
+          }
+          ,function(err){db.saveDoc(values,function(err,ok){
+            if (err) return cb(err);
+            values.id = ok.id;
+            values.rev = ok.rev;
+
+            return cb(err,values);
+          })}
+        );
+      }, coll[collectionName].config,cb);
     },
 
     // Same as create(), but utilizes CouchDB's bulk update functionality.
@@ -114,7 +129,7 @@ module.exports = (function(){
             return cb(err,results);
           });
         });
-      }, designs[collectionName].config,cb);
+      }, coll[collectionName].config,cb);
     },
 
     // Views are looked up and saved based on hashes of their "where" field.
@@ -127,22 +142,27 @@ module.exports = (function(){
 
     find: function(collectionName, options, cb) {
       spawnClient(function(db,cb){
-      var queryKey = JSON.stringify(Object.keys(options.where).sort());
-      createHash(queryKey,function(err,hash){
-          generateView(options,function(err,view,query){
+        var queryKey = JSON.stringify(Object.keys(options.where).sort());
+        createHash(queryKey,function(err,hash){
+          if (err) return cb(err);
+          generateView(options,function(err,view){
             if(err) return cb(err);
-            saveView(collectionName,hash,view,function(err,ok){
+            saveView(collectionName,hash,view,db,function(err,ok){
               if (err) return cb(err);
-              db.view(collectionName,'sails_'+hash,query,function(err,ok){
+              generateQuery(options,function(err,query){
                 if (err) return cb(err);
-                formatModelsFind(ok.rows,function(err,models){
-                  return cb(err,models);
+                db.view(collectionName,'sails_'+hash,query,function(err,ok){
+                  if (err) return cb(err);
+                  var schema = coll[collectionName].schema;
+                  formatModelsFind(ok.rows,schema,function(err,models){
+                    return cb(err,models);
+                  });
                 });
               });
             });
           });
         });
-      },designs[collectionName].config,cb);
+      },coll[collectionName].config,cb);
     },
 
     // TODO: Implement
@@ -178,14 +198,13 @@ module.exports = (function(){
    */
 
   // Saves a view. Retries if revision number is adjusted.
-  var saveView = function(collectionName,viewName,view,cb){
+  var saveView = function(collectionName,viewName,view,db,cb){
     var doc = {};
     var saved = false;
-    var self = this;
 
 
-    if(!designs[collectionName]._views["sails_"+viewName]){
-      designs[collectionName]._views["sails_"+viewName]=view;
+    if(!coll[collectionName]._views["sails_"+viewName]){
+      coll[collectionName]._views["sails_"+viewName]=view;
     }
     db.getDoc("_design/"+collectionName,function(err,ok){
       if (err && err.error !== 'not_found') return cb(err);
@@ -194,26 +213,27 @@ module.exports = (function(){
         doc.views = _.clone(ok.views);
         doc._rev = ok._rev;
       }
-      _.extend(doc.views,designs[collectionName]._views);
+      _.extend(doc.views,coll[collectionName]._views);
       db.saveDesign(collectionName,doc,function(err,ok){
         // Retry at conflict (not tested)
-        if (err && err.error === "confict") { self(collectionName,viewName,view,cb); }
-        else {return cb(err,ok);}
+        if (err && err.error === "confict") { return saveView(collectionName,viewName,view,cb); };
+        return cb(err,ok);
       });
     });
   };
 
   // Creates a new client connection for the database. Wrapper for function calls.
   var spawnClient = function(logic, config, cb) {
-    if(Object.keys(db).length > 0) {
+    var key = [config.database,config.host,config.port].join();
+    if(dbs[key]){
       return afterwards();
     }
     var client = couchdb.createClient(config.host, config.port);
-    db = client.db(config.database);
+    dbs[key] = client.db(config.database);
     afterwards();
 
     function afterwards() {
-      logic(db, function(err, result) {
+      logic(dbs[key], function(err, result) {
         cb(err, result);
       });
     }
@@ -230,43 +250,57 @@ module.exports = (function(){
 var generateView = function(options,cb){
   var mapFunc = "function(doc){if(REQUIRED){emit(EMITTED,doc);}}";
   var view = {};
-  var query = {include_docs:true};
-  query.startkey = [];
-  query.endkey = [];
-  if (options.limit) query.limit = options.limit;
   var required = "doc";
   var emitted = "[";
   async.forEach(Object.keys(options.where), function(key,cb){
     required = required + " && doc." + key;
     emitted = emitted + "doc." + key + ",";
-    query.startkey.push(options.where[key]);
-    query.endkey.push(options.where[key]);
     cb();
   },function(err){
     emitted = emitted.replace(/,$/,"") + "]";
     mapFunc = mapFunc.replace("REQUIRED",required).replace("EMITTED",emitted).replace(/ +?/g, '');
     view.map = mapFunc;
-    return cb(err,view,query);
+    return cb(err,view);
   });
 };
+
+var generateQuery = function(options,cb){
+  var query = {include_docs:true};
+  var query = {};
+  query.startkey = [];
+  query.endkey = [];
+  if (options.limit) query.limit = options.limit;
+  async.forEach(Object.keys(options.where), function(key,cb){
+    query.startkey.push(options.where[key]);
+  });
+  query.endkey = query.startkey;
+  return cb(null,query);
+}
 
 // Formats the models returned by CouchDB into a format that waterline accepts.
-var formatModelsFind = function(models,cb){
+var formatModelsFind = function(models,schema,cb){
   var results = [];
-  async.forEach(models,function(model,cb){
-    var result = model.value;
-    result.id = result._id;
-    delete result._id;
-    result.rev = result._rev;
-    delete result._rev;
-    results.push(result);
-    cb();
+  async.forEach(Object.keys(schema),function(key,cb){
+    if (typeof schema[key] !== 'function') return cb();
+    _.each(models,function(model){
+      model[key] = schema[key];
+    });
+    return cb();
   },function(err){
-    if (err) return cb(err);
-    cb(err, results);
+    async.forEach(models,function(model,cb){
+      var result = model.value;
+      result.id = result._id;
+      delete result._id;
+      result.rev = result._rev;
+      delete result._rev;
+      results.push(result);
+      cb();
+    },function(err){
+      if (err) return cb(err);
+      cb(err, results);
+    });
   });
 };
-
 // Shim for createEach() to format the models into a form that waterline accepts.
 var formatModelsCreate = function(models,results,cb){
   async.series([function(cb){
@@ -294,5 +328,24 @@ var createHash = function(data,cb){
     cb();
   }],function(err){
     cb(err,viewName);
+  });
+};
+
+var getAutoIncrement = function(collectionName,key,db,cb){
+  var docName = collectionName+"_autoIncrement_"+key;
+  var values = {};
+  values[key] = 1;
+  db.getDoc(docName,function(err,ok){
+    if (err && err.error!=="not_found") return (err);
+    if (ok){
+      values = _.clone(ok);
+      values[key] = values[key] + 1;  
+    }
+
+    db.saveDoc(docName,values,function(err,ok)
+    {
+      if (err && err.error === "conflict") return getAutoIncrement(collectionName,key,db,cb);
+      return cb(err,values[key]);
+    });
   });
 };
