@@ -29,7 +29,21 @@ All date objects passed to the adapter will store them as an array for easier ra
 Views
 -----
 
-Soon to be added: custom functionality to create and query views directly.
+A custom function included is the "view" function:
+
+    options = {
+      design: "designDoc",
+      view: "viewName",
+      query: {
+      	group:true,
+      	startkey:"start",
+      	endkey:"end"
+      }
+    };
+
+    Model.view(options,callback(err,models){
+      // Do stuff with models;
+    });
 
 Tests
 -----
