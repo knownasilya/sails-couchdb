@@ -31,7 +31,7 @@ Views
 
 A custom function included is the "view" function:
 
-    options = {
+    var options = {
       design: "designDoc",
       view: "viewName",
       query: {
