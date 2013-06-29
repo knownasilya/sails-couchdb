@@ -11,8 +11,7 @@ Configuration
     adapter.config:{
       host:"localhost",
       port:5984,
-      database:"database",
-      datesAsArray: true
+      database:"database"
     }
 
 CRUD
@@ -22,10 +21,10 @@ This adapter allows for the basic CRUD operations required for a Sails adapter. 
 
 This support is facilitated by automatically generating views for your Find queries. This means that it is slow the first time running, but subsequently fast. I would not recommend leveraging auto-view for production, as creating on-the-fly views means building a new B-tree. However, for development, it is VERY useful, as it can show you what sort of map/reduce functions you should need to implement in your final product.
 
-datesAsArray
-------------
+Dates stored as array
+---------------------
 
-You can pass the datesAsArray option to the adapter to store any 'date' fields in your model as an array in CouchDB. This is for those who would like to do easier range queries on dates. This is currently not supported for the createdAt and updatedAt timestamps.
+All date objects passed to the adapter will store them as an array for easier range querying.
 
 Views
 -----
