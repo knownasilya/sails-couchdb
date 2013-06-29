@@ -246,4 +246,3 @@ PASS Query count() should accurately count records: 33ms
 PASS Query count() should work with dynamic finders: 6ms
 
 FAIL Query .findLike() should return all the users with the given name
-
