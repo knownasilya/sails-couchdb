@@ -38,23 +38,23 @@ This project is ongoing. I will be running integration tests as I implement more
 
 This adapter was tested with [waterline-adapter-tests](https://github.com/balderdash/waterline-adapter-tests).
 
-Here are the failures of the current test suite. Working on customizing the reporting so it looks cleaner:
+Here are the failures of the current test suite:
 
-PASS Collection .createEach() should create a set of users: 8ms
+PASS Collection .createEach(FAIL should create a set of users: 11ms
 
-PASS Collection .createEach() should insert 2 records verififed by find: 17ms
+PASS Collection .createEach(FAIL should insert 2 records verififed by find: 18ms
 
-PASS Collection .createEach() should return model instances: 4ms
+PASS Collection .createEach(FAIL should return model instances: 8ms
 
-PASS Collection .create() should create a new record: 2ms
+PASS Collection .create(FAIL should create a new record: 5ms
 
-PASS Collection .create() should return a generated PK: 3ms
+PASS Collection .create(FAIL should return a generated PK: 4ms
 
-PASS Collection .create() should return generated timestamps: 3ms
+PASS Collection .create(FAIL should return generated timestamps: 5ms
 
-PASS Collection .create() should return a model instance: 2ms
+PASS Collection .create(FAIL should return a model instance: 4ms
 
-PASS Collection .create() overloaded usage of create should have saved the proper values (with auto-increment values): 21ms
+PASS Collection .create(FAIL overloaded usage of create should have saved the proper values (with auto-increment valuesFAIL: 19ms
 
 PASS Collection Schema primaryKey should disable autoPK: 0ms
 
@@ -68,13 +68,13 @@ PASS Collection Schema uniqueness should set unique on schema attribute: 0ms
 
 FAIL Collection Schema uniqueness should return an error if unique constraint fails
 
-PASS Collection .findOrCreate() should create a new record: 22ms
+PASS Collection .findOrCreate(FAIL should create a new record: 26ms
 
-PASS Collection .findOrCreate() should return a single record: 17ms
+PASS Collection .findOrCreate(FAIL should return a single record: 18ms
 
-PASS Collection .findOrCreate() should only have a single record in the database: 6ms
+PASS Collection .findOrCreate(FAIL should only have a single record in the database: 9ms
 
-PASS Collection .findOrCreate() should return a model instance: 6ms
+PASS Collection .findOrCreate(FAIL should return a model instance: 12ms
 
 PASS Collection definitions autoCreatedAt should be on by default: 0ms
 
@@ -88,83 +88,83 @@ PASS Collection definitions autoPK should be set to use id by default: 0ms
 
 PASS Collection definitions autoPK should cause new schema to have an id attribute: 0ms
 
-PASS Collection .findOne() should return a single record: 12ms
+PASS Collection .findOne(FAIL should return a single record: 13ms
 
-PASS Collection .findOne() should return a model instance: 3ms
+PASS Collection .findOne(FAIL should return a model instance: 7ms
 
-PASS Collection .findOne() should return null if a record is not found: 5ms
+PASS Collection .findOne(FAIL should return null if a record is not found: 8ms
 
-PASS Collection .findOne() should work with just an id passed in: 3ms
+PASS Collection .findOne(FAIL should work with just an id passed in: 4ms
 
-FAIL Collection .findOne() should work with no criteria passed in
+FAIL Collection .findOne(FAIL should work with no criteria passed in
 
-PASS Collection .findOrCreateEach() should create new user(s) for the one that doesn't exist: 25ms
+PASS Collection .findOrCreateEach(FAIL should create new user(sFAIL for the one that doesn't exist: 11ms
 
-PASS Collection .findOrCreateEach() should find a user that does exist: 15ms
+PASS Collection .findOrCreateEach(FAIL should find a user that does exist: 9ms
 
-PASS Collection .findOrCreateEach() should only have a single record for keys that exist: 24ms
+PASS Collection .findOrCreateEach(FAIL should only have a single record for keys that exist: 12ms
 
-PASS Collection .findOrCreateEach() should fail when only one arg is specified: 0ms
+PASS Collection .findOrCreateEach(FAIL should fail when only one arg is specified: 0ms
 
-PASS Collection .findOrCreateEach() should return model instances: 9ms
+PASS Collection .findOrCreateEach(FAIL should return model instances: 14ms
 
-PASS Attribute Types String with valid data should store proper string value: 5ms
+PASS Attribute Types String with valid data should store proper string value: 3ms
 
 PASS Attribute Types Float with valid data should store proper float value: 6ms
 
-PASS Attribute Types Date with valid data should store proper date value: 7ms
+PASS Attribute Types Date with valid data should store proper date value: 3ms
 
-PASS Attribute Types Integer with valid data should store proper integer: 5ms
+PASS Attribute Types Integer with valid data should store proper integer: 2ms
 
-PASS Attribute Types Boolean with valid data should store proper boolean value: 6ms
+PASS Attribute Types Boolean with valid data should store proper boolean value: 4ms
 
-PASS Attribute Types Array with valid data should store proper array value: 6ms
+PASS Attribute Types Array with valid data should store proper array value: 9ms
 
-PASS Collection .update() attributes should return model instances: 1511ms
+PASS Collection .update(FAIL attributes should return model instances: 31ms
 
-PASS Collection .update() attributes should work with just an ID passed in: 9ms
+PASS Collection .update(FAIL attributes should work with just an ID passed in: 12ms
 
-FAIL Collection .update() find updated records should allow the record to be found
+PASS Collection .update(FAIL find updated records should allow the record to be found: 16ms
 
-PASS Collection .destroy() a single record should destroy a record: 1ms
+PASS Collection .destroy(FAIL a single record should destroy a record: 25ms
 
-FAIL Collection .destroy() a single record should return an empty array when searched for
+PASS Collection .destroy(FAIL a single record should return an empty array when searched for: 14ms
 
-PASS Collection .destroy() multiple records should destroy all the records: 1ms
+FAIL Collection .destroy(FAIL multiple records should destroy all the records
 
-FAIL Collection .destroy() multiple records should return an empty array when searched for
+PASS Collection .destroy(FAIL multiple records should return an empty array when searched for: 15ms
 
-PASS Collection .find() should return 10 records: 13ms
+PASS Collection .find(FAIL should return 10 records: 16ms
 
-PASS Collection .find() should return 1 record when searching for a specific record (integer test) with find: 30ms
+PASS Collection .find(FAIL should return 1 record when searching for a specific record (integer testFAIL with find: 28ms
 
-FAIL Collection .find() should return 1 record when searching for a specific record (integer test) with find
+FAIL Collection .find(FAIL should return 1 record when searching for a specific record (integer testFAIL with find
 
-PASS Collection .find() should return a model instance: 10ms
+PASS Collection .find(FAIL should return a model instance: 13ms
 
-FAIL Collection .find() should work with no criteria passed in
+FAIL Collection .find(FAIL should work with no criteria passed in
 
 FAIL Query Modifiers endsWith shorthand should return the user with the correct name
 
 FAIL Query Modifiers endsWith full where criteria should return the user with the correct name
 
-FAIL Query Modifiers endsWith dynamic attribute should have [attribute]EndsWith() method
+FAIL Query Modifiers endsWith dynamic attribute should have [attribute]EndsWith(FAIL method
 
-FAIL Query Modifiers lessThan (<) should return records with lessThan key
+FAIL Query Modifiers lessThan (<FAIL should return records with lessThan key
 
-FAIL Query Modifiers lessThan (<) should return records with symbolic usage < usage
+FAIL Query Modifiers lessThan (<FAIL should return records with symbolic usage < usage
 
-FAIL Query Modifiers lessThanOrEqual (<=) should return records with lessThanOrEqual key
+FAIL Query Modifiers lessThanOrEqual (<=FAIL should return records with lessThanOrEqual key
 
-FAIL Query Modifiers lessThanOrEqual (<=) should return records with symbolic usage <= usage
+FAIL Query Modifiers lessThanOrEqual (<=FAIL should return records with symbolic usage <= usage
 
-FAIL Query Modifiers greaterThan (>) should return records with greaterThan key
+FAIL Query Modifiers greaterThan (>FAIL should return records with greaterThan key
 
-FAIL Query Modifiers greaterThan (>) should return records with symbolic usage > usage
+FAIL Query Modifiers greaterThan (>FAIL should return records with symbolic usage > usage
 
-FAIL Query Modifiers greaterThanOrEqual (>=) should return records with greaterThanOrEqual key
+FAIL Query Modifiers greaterThanOrEqual (>=FAIL should return records with greaterThanOrEqual key
 
-FAIL Query Modifiers greaterThanOrEqual (>=) should return records with symbolic usage >= usage
+FAIL Query Modifiers greaterThanOrEqual (>=FAIL should return records with symbolic usage >= usage
 
 FAIL Query OR Query Modifier with a record should return the correct users
 
@@ -172,17 +172,17 @@ FAIL Query OR Query Modifier with a record should return a model instances
 
 PASS Query OR Query Modifier without a record should return an empty array: 7ms
 
-PASS Query LIMIT Query Modifier should return the correct amount of records: 14ms
+PASS Query LIMIT Query Modifier should return the correct amount of records: 23ms
 
-PASS Query LIMIT Query Modifier dynamic finder usage should return the correct amount of records: 3ms
+PASS Query LIMIT Query Modifier dynamic finder usage should return the correct amount of records: 6ms
 
-PASS Query LIMIT Query Modifier as an option should return correct amount of records: 4ms
+PASS Query LIMIT Query Modifier as an option should return correct amount of records: 11ms
 
 FAIL Query Modifiers startsWith shorthand should return the user with the correct name
 
 FAIL Query Modifiers startsWith full where criteria should return the user with the correct name
 
-FAIL Query Modifiers startsWith dynamic attribute should have [attribute]StartsWith() method
+FAIL Query Modifiers startsWith dynamic attribute should have [attribute]StartsWith(FAIL method
 
 FAIL Query Modifiers LIKE should return the user with the given name
 
@@ -192,17 +192,17 @@ FAIL Query Modifiers contains shorthand should return the user with the correct 
 
 FAIL Query Modifiers contains full where criteria should return the user with the correct name
 
-FAIL Query Modifiers contains dynamic attribute should have [attribute]contains() method
+FAIL Query Modifiers contains dynamic attribute should have [attribute]contains(FAIL method
 
-FAIL Query Modifiers not (!) should return records with string usage
+FAIL Query Modifiers not (!FAIL should return records with string usage
 
-FAIL Query Modifiers not (!) should return records with symbolic usage ! usage
+FAIL Query Modifiers not (!FAIL should return records with symbolic usage ! usage
 
 FAIL Query IN Query Modifier with a record should return correct user
 
 FAIL Query IN Query Modifier with a record should return a model instance
 
-PASS Query IN Query Modifier without a record should return an empty array: 9ms
+PASS Query IN Query Modifier without a record should return an empty array: 8ms
 
 FAIL Query SKIP Query Modifier should return the correct amount of records
 
@@ -210,23 +210,23 @@ FAIL Query SKIP Query Modifier dynamic finder usage should return the correct am
 
 FAIL Query SKIP Query Modifier as an option should return correct amount of records
 
-PASS Query SORT Query Modifier should sort records using binary notation for asc: 25ms
+PASS Query SORT Query Modifier should sort records using binary notation for asc: 24ms
 
 FAIL Query SORT Query Modifier should sort records using binary notation desc
 
-PASS Query SORT Query Modifier should sort records using string notation for asc: 16ms
+PASS Query SORT Query Modifier should sort records using string notation for asc: 13ms
 
 FAIL Query SORT Query Modifier should sort records using string notation for desc
 
 FAIL Query SORT Query Modifier should sort when sort is an option
 
-FAIL Query case sensitivity .findOne() should work in a case insensitve fashion by default
+FAIL Query case sensitivity .findOne(FAIL should work in a case insensitve fashion by default
 
-FAIL Query case sensitivity .findOne() should work with findOneBy*()
+FAIL Query case sensitivity .findOne(FAIL should work with findOneBy*(FAIL
 
-FAIL Query case sensitivity .find() should work in a case insensitve fashion by default
+FAIL Query case sensitivity .find(FAIL should work in a case insensitve fashion by default
 
-FAIL Query case sensitivity .find() should work with findBy*()
+FAIL Query case sensitivity .find(FAIL should work with findBy*(FAIL
 
 FAIL Query case sensitivity special classified queries contains should work in a case insensitive fashion by default
 
@@ -238,10 +238,5 @@ FAIL Query case sensitivity special classified queries like should work in a cas
 
 FAIL Query case sensitivity special classified queries endsWith should actually enforce endswith
 
-FAIL Query .findOneLike() should return the user with the given name
+FAIL Query .findOneLike(FAIL should return the user with the given name
 
-PASS Query count() should accurately count records: 33ms
-
-PASS Query count() should work with dynamic finders: 6ms
-
-FAIL Query .findLike() should return all the users with the given name
