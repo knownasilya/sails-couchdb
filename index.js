@@ -145,9 +145,26 @@ module.exports = (function(){
 
     // TODO: Implement
     destroy: function(collectionName, options, cb) {
+      spawnClient(function(db,cb){
+        var formatted = [];
+        adapter.find(collectionName,options,function(err,models){
+          async.forEach(models,function(model,callback){
+            db.removeDoc(model.id,model.rev,function(err,ok){
+              callback(err,ok);
+            });
+          },function(err){
+            return cb(err);
+          });
+        });
+      },coll[collectionName].config,cb);
+    },
 
-      // Nothing Here
-      cb();
+    view: function(collectionName,options,cb){
+      spawnClient(function(db,cb){
+        db.view(options.design,options.view,options.query,function(err,data){
+          return cb(err,data);
+        });
+      },coll[collectionName].config,cb);
     },
 
 
