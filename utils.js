@@ -2,9 +2,54 @@ var crypto = require('crypto')
   , async = require('async')
   , _ = require('underscore');
 
+// Maintains our automatically generated views
 var viewCollection = {};
 
-exports.search = function(schema,options,db,cb){
+
+// Converts a Waterline model to Couch. Allows for datesAsArray conversion
+exports.waterlineToCouch = function(values,collection,db,cb){
+  var schema = collection.schema;
+  async.forEach(Object.keys(schema),
+  function(key,callback){
+    if (!values[key]){
+      return callback();
+    }
+    else if (schema[key].required){
+      return callback("Required field missing");
+    }
+    else if (schema[key].type === 'date'){
+      var date = new Date(values[key]).toISOString().split("T");
+      date = date[0].split("-").concat(date[1].split(":"));
+      for (var i = 0; i < date.length; ++i){
+        date[i] = parseInt(date[i]);
+      }
+      values[key] = date;
+      return callback();
+    }
+    else if (schema[key].autoIncrement === true && key != "id"){
+      exports.getAutoIncrement(collection.identity,key,db,function(err,value){
+        if (err) return callback(err);
+        values[key] = value;
+        return callback();
+      });
+    }
+    else{
+      return callback();
+    }
+  },function(err){
+    if (values.id && values.rev){
+          values._id = values.id.toString();
+    values._rev = values.rev.toString();
+    delete values.id;
+    delete values.rev;
+    }
+
+    return cb(err,values);
+  });
+};
+
+// Searches based on automatically-generated views
+exports.autoView = function(schema,options,db,cb){
   async.waterfall([
     function(callback){
       var queryKey = JSON.stringify(Object.keys(options.where).sort());
@@ -15,19 +60,21 @@ exports.search = function(schema,options,db,cb){
       });
     },
     function(hash,callback){
-      var query = generateQuery(options);
+      var query = waterlineToCouchQuery(options);
       db.view('sails_'+hash,hash,query,function(err,ok){
-        callback(err,ok.rows,schema);
+        callback(err,ok.rows);
       });
     }],
     function(err,unformatted){
       if (err) return cb(err);
-      var models = formatModelsFind(unformatted,schema);
+      var models = couchToWaterline(unformatted,schema);
       cb(null,models)
     }
   );
 };
 
+// Saves a view to CouchDB using a hash based on the query.
+// Meant for autoView
 exports.saveView = function(view,hash,db,cb){
   var doc = {};
   doc.views = {};
@@ -41,6 +88,8 @@ exports.saveView = function(view,hash,db,cb){
     return cb();
   });
 };
+
+
 
 // Generates a view object to be passed to saveView();
 exports.generateView = function(options){
@@ -58,29 +107,9 @@ exports.generateView = function(options){
   return view;
 };
 
-// Formats the models returned by CouchDB into a format that waterline accepts.
-
-
-// Shim for createEach() to format the models into a form that waterline accepts.
-exports.formatModelsCreate = function(models,results,cb){
-  async.series([function(cb){
-    _.each(_.range(models.length),function(value){
-      models[value].id = results[value].id;
-      models[value].rev = results[value].rev;
-      delete models[value]._id;
-      delete models[value]._rev;
-    });
-    return cb();
-  }],function(err){
-    if (err) return cb(err);
-    return cb(err, models);
-  });
-};
-
-// Utility function for creating a hash key. Used for indexing views in a design document.
-
+// Utility for autoIncrement functionality.
 exports.getAutoIncrement = function(collectionName,key,db,cb){
-  var docName = 'sails_' + collectionName+"_autoIncrement_"+key;
+  var docName = 'sails_autoIncrement_' + collectionName+"_autoIncrement_"+key;
   var values = {};
   values[key] = 1;
   db.getDoc(docName,function(err,ok){
@@ -89,15 +118,15 @@ exports.getAutoIncrement = function(collectionName,key,db,cb){
       values = _.clone(ok);
       values[key] = values[key] + 1;  
     }
-
     db.saveDoc(docName,values,function(err,ok)
     {
-      if (err && err.error === "conflict") return getAutoIncrement(collectionName,key,db,cb);
+      if (err && err.error === "conflict") return exports.getAutoIncrement(collectionName,key,db,cb);
       return cb(err,values[key]);
     });
   });
 };
 
+// Creates a hash for use in autoView generation
 var createHash = function(data){
   var sha256Hash;
   sha256Hash = crypto.createHash('sha256');
@@ -106,7 +135,8 @@ var createHash = function(data){
   return viewName;
 };
 
-var generateQuery = function(options){
+// Converts a Waterline query to CouchDB.
+var waterlineToCouchQuery = function(options){
   var query = {include_docs:true};
   query.startkey = [];
   query.endkey = [];
@@ -118,21 +148,31 @@ var generateQuery = function(options){
   return query;
 };
 
-var formatModelsFind = function(models,schema){
+// Converts Couch to Waterline Model
+var couchToWaterline = function(models,schema){
   var results = [];
   _.each(Object.keys(schema),function(key){
     if (typeof schema[key] === 'function'){
       _.each(models,function(model){
           model[key] = schema[key];
       });
+    }else if (schema[key].type === 'date'){
+      _.each(models,function(model){
+        if (model.doc[key]){
+          model.doc[key] = new Date(Date.UTC(model.doc[key][0],model.doc[key][1]-1,model.doc[key][2],
+          model.doc[key][3],model.doc[key][4],model.doc[key][5]));
+        }
+      });
     }
   });
   _.each(models,function(model){
-    var result = model.value;
+    var result = model.doc;
     result.id = result._id;
     delete result._id;
     result.rev = result._rev;
     delete result._rev;
+    result.createdAt = new Date(result.createdAt);
+    result.updatedAt = new Date(result.updatedAt);
     results.push(result);
   });
   return results;

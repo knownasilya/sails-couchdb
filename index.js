@@ -9,7 +9,6 @@
 var async = require('async')
   , couchdb = require('felix-couchdb')
   , _ = require('underscore')
-  , crypto = require('crypto')
   , utils = require('./utils');
 
 
@@ -22,9 +21,9 @@ module.exports = (function(){
   var dbs = {};
 
   var adapter = {
-    syncable: true, 
+    syncable: true,
 
-    // This function is for adding the collection to our design docs.
+    // This registers a collection with this adapter
     registerCollection: function(collection, cb) {
 
       coll[collection.identity] = _.each(coll, function(cln){
@@ -35,6 +34,8 @@ module.exports = (function(){
       }
       coll[collection.identity]._views = {};
       coll[collection.identity].schema = {};
+      coll[collection.identity].datesAsArray = collection.config.datesAsArray ?
+        collection.config.datesAsArray : false;
       if (cb) return cb();
     },
 
@@ -44,46 +45,25 @@ module.exports = (function(){
     },
 
 
-    // Creates a view in the design doc to filter for the models based on required keys.
-    // TODO: Allow required keys to be passed to generateView();
+    // Creates the database if it does not already exist
     define: function(collectionName, definition, cb) {
-      spawnClient(function __DEFINE__(db, cb){
-        var def = _.clone(definition);
-        var keys = Object.keys(def);
-        var index = [];
-        var options = {};
-        options.where = {};
-
-        async.waterfall([
-          function(callback) {
-            var requiredKeys = _.filter(Object.keys(def),function(key){
-                return def[key].required
-            });
-            _.each(requiredKeys,function(value){
-              options.where[value] = def[value];
-            });
-            coll[collectionName].schema = def;
-            var view = utils.generateView(options,'sails_index');
-            callback(null,view)
-          }],
-          function(err,view){
-            utils.saveView(view,'sails_' + collectionName,db,function(err,data){
-              if (err) return cb(err);
-              return cb(err,data);
-            });
-          });
+      spawnClient(function __DEFINE__(db,cb){
+        db.create(function(err,ok){
+          if(err && err.error !== "file_exists") return cb(err);
+          coll[collectionName].schema = definition;
+          return cb(null,coll[collectionName].schema);
+        });
       },coll[collectionName].config,cb);
     },
-
+ 
     // Simply returns the schema of the given design doc.
-    // TODO: prevent associated views from being returned.
     describe: function(collectionName, cb) {
       var des = Object.keys(coll[collectionName].schema).length === 0 ?
         null : coll[collectionName].schema;
       return cb(null, des);
     },
 
-    // TODO: Actually implement. Will only remove associated view. Data remains in DB.
+    // TODO: Actually implement.
     drop: function(collectionName, cb) {
       spawnClient(function __DROP__(db,cb){
         cb();
@@ -91,89 +71,74 @@ module.exports = (function(){
     },
     
     // Creates only if there isn't already a document there.
-    // TODO: Overload update() to create event if a document is already in the DB.
     create: function(collectionName, values, cb) {
-      spawnClient(function(db,cb){
-        async.each(Object.keys(coll[collectionName].schema),
-          function(key,cb){
-            var schema = coll[collectionName].schema;
-            if (schema[key].required && !values[key]){
-              return cb("Required field missing");
-            }
-            if (schema[key].autoIncrement !== true){
-              return cb();
-            };
-            utils.getAutoIncrement(collectionName,key,db,function(err,value){
-              if (err) return cb(err);
-              values[key] = value;
-              return cb();
-            });
-          },function(err){
-            if (err) return cb(err);
-            db.saveDoc(values,function(err,ok){
-              if (err) return cb(err);
-              values.id = ok.id;
-              values.rev = ok.rev;
-              return cb(err,values);
-            })
-          }
-        );
-      }, coll[collectionName].config,cb);
-    },
-
-    // Same as create(), but utilizes CouchDB's bulk update functionality.
-    createEach: function(collectionName, values, cb){
-      spawnClient(function(db,cb){
-        db.bulkDocs({"docs":values},function(err,ok){
+      spawnClient(function __CREATE__(db,cb){
+        utils.waterlineToCouch(values,coll[collectionName],db,function(err,formatted){
           if (err) return cb(err);
-          utils.formatModelsCreate(values,ok,function(err,results){
+          db.saveDoc(formatted,function(err,ok){
             if (err) return cb(err);
-            return cb(err,results);
+            if (coll[collectionName].datesAsArray){
+              _.each(Object.keys(formatted),function(key){
+                if (coll[collectionName].schema[key] && coll[collectionName].schema[key].type === 'date'){
+                  formatted[key] = new Date(Date.UTC(formatted[key][0],formatted[key][1]-1,formatted[key][2],
+                    formatted[key][3],formatted[key][4],formatted[key][5]));
+                };
+              });
+            }
+            formatted.id = ok.id;
+            formatted.rev = ok.rev;
+            delete formatted._id;
+            delete formatted._rev;
+            return cb(err,formatted);
           });
         });
       }, coll[collectionName].config,cb);
     },
 
-    // Views are looked up and saved based on hashes of their "where" field.
-    // Generates new view (or grabs old one if available).
-    // Updates the doc with the new views.
-    // NOTE: Every time you update a design doc, it reruns the map-reduce functions.
-    // Not a concern if queries run initially or views created at start.
-    // Possible work-around is to reference individual DBs and create multiple design docs.
-    // Will explore further. Possibly make it flaggable.
-
+    // Find function uses autoView functionality if the query contains anything besides
+    // the ID of the document. This is an expensive operation and is meant only for compatibility
+    // with other Sails adapters.
     find: function(collectionName,options,cb){
       spawnClient(function(db,cb){
-        utils.search(coll[collectionName].schema,options,db,function(err,models){
-          cb(err,models);
-        });
+        if (options.where && options.where.id){
+          db.getDoc(options.where.id,function(err,doc){
+            cb(err,[doc]);
+          })
+        }
+        else{
+          utils.autoView(coll[collectionName].schema,options,db,function(err,models){
+            cb(err,models);
+          });
+        }
       },coll[collectionName].config,cb);
     },
 
-    // TODO: Implement
+    // Searches for and updates models.
     update: function(collectionName, options, values, cb) {
-        spawnClient(function(db,cb){
-        utils.search(coll[collectionName].schema,options,db,function(err,models){
-          if (err) return cb(err);
-          async.series([function(callback){
-            _.each(models,function(model){
-              model = _.extend(model,values);
-              model._id = model.id;
-              model._rev = model.rev;
-              delete model.id;
-              delete model.rev;
-            })
-            callback();
-          }],
-          function(err){
-            db.bulkDocs({"docs":models},function(err,ok){
+      spawnClient(function(db,cb){
+        var formatted = [];
+        adapter.find(collectionName,options,function(err,models){
+          async.forEach(models,function(model,callback){
+            _.extend(model,values);
+            utils.waterlineToCouch(model,coll[collectionName],db,function(err,result){
+              formatted.push(result);
+              callback(err);
+            });
+          },function(err){
+            db.bulkDocs({"docs":formatted},function(err,ok){
               if (err) return cb(err);
-              utils.formatModelsCreate(models,ok,function(err,results){
+              async.forEach(_.range(formatted.length),function(value,callback){
+                formatted[value].id = ok[value].id;
+                formatted[value].rev = ok[value].rev;
+                delete formatted[value]._id;
+                delete formatted[value]._rev;
+                return callback();
+              },function(err){
                 if (err) return cb(err);
-                return cb(err,results);
+                return cb(err, models);
               });
             });
-          })
+          });
         });
       },coll[collectionName].config,cb);
     },
@@ -195,16 +160,11 @@ module.exports = (function(){
 
     identity: 'sails-couchdb',
 
-
-
   };
   /*
    * MODULE METHODS
    *
    */
-
-  // Saves a view. Retries if revision number is adjusted.
-
 
   // Creates a new client connection for the database. Wrapper for function calls.
   var spawnClient = function(logic, config, cb) {
@@ -224,3 +184,4 @@ module.exports = (function(){
   }
   return adapter;
 })();
+
